@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>그림판</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px;
+      background: #eee;
+      z-index: 2;
+    }
+    canvas {
+      flex: 1;
+      border: 1px solid #ccc;
+      cursor: none;
+      display: block;
+    }
+    #cursor-preview {
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      border: 1px solid #00000055;
+      background-color: transparent;
+      mix-blend-mode: difference;
+      width: 0;
+      height: 0;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <select id="tool">
+      <option value="pen">펜</option>
+    </select>
+    <input type="color" id="color" value="#000000" />
+    <input type="range" id="size" min="1" max="30" value="5" />
+  </div>
+  <canvas id="canvas" width="1200" height="800"></canvas>
+  <div id="cursor-preview"></div>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const cursorPreview = document.getElementById("cursor-preview");
+    const sizeInput = document.getElementById("size");
+    const colorInput = document.getElementById("color");
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    function getCursorPosition(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+
+    canvas.addEventListener("mousedown", (e) => {
+      const pos = getCursorPosition(e);
+      lastX = pos.x;
+      lastY = pos.y;
+      drawing = true;
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      const size = parseInt(sizeInput.value);
+      cursorPreview.style.width = size + "px";
+      cursorPreview.style.height = size + "px";
+      cursorPreview.style.left = e.pageX - size / 2 + "px";
+      cursorPreview.style.top = e.pageY - size / 2 + "px";
+
+      if (!drawing) return;
+
+      const pos = getCursorPosition(e);
+      ctx.strokeStyle = colorInput.value;
+      ctx.lineWidth = size;
+      ctx.lineCap = "round";
+
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+
+      lastX = pos.x;
+      lastY = pos.y;
+    });
+
+    canvas.addEventListener("mouseup", () => drawing = false);
+    canvas.addEventListener("mouseleave", () => drawing = false);
+  </script>
+</body>
+</html>
