@@ -1,106 +1,193 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>그림판</title>
+  <meta charset="UTF-8">
+  <title>그림 그리기 앱</title>
   <style>
     body {
       margin: 0;
+      background: #222;
+      color: white;
       font-family: sans-serif;
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+      align-items: center;
     }
+
     #toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      background: #333;
       padding: 10px;
-      background: #eee;
-      z-index: 2;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-    canvas {
-      flex: 1;
-      border: 1px solid #ccc;
-      cursor: none;
-      display: block;
+
+    #toolbar input[type="color"],
+    #toolbar input[type="range"],
+    #toolbar button {
+      padding: 5px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
     }
-    #cursor-preview {
-      position: absolute;
-      pointer-events: none;
-      border-radius: 50%;
-      border: 1px solid #00000055;
-      background-color: transparent;
-      mix-blend-mode: difference;
-      width: 0;
-      height: 0;
-      z-index: 5;
+
+    #canvas {
+      background: white;
+      touch-action: none;
+      border: 2px solid #555;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
+
+  <h1>🖌️ 그림 그리기 앱</h1>
+
   <div id="toolbar">
-    <select id="tool">
-      <option value="pen">펜</option>
-    </select>
-    <input type="color" id="color" value="#000000" />
-    <input type="range" id="size" min="1" max="30" value="5" />
+    <label>색상:
+      <input type="color" id="colorPicker" value="#000000">
+    </label>
+    <label>브러시 크기:
+      <input type="range" id="brushSize" min="1" max="50" value="5">
+    </label>
+    <button onclick="setTool('brush')">브러시</button>
+    <button onclick="setTool('eraser')">지우개</button>
+    <button onclick="clearCanvas()">전체 지우기</button>
   </div>
-  <canvas id="canvas" width="1200" height="800"></canvas>
-  <div id="cursor-preview"></div>
+
+  <canvas id="canvas" width="1200" height="600"></canvas>
 
   <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const cursorPreview = document.getElementById("cursor-preview");
-    const sizeInput = document.getElementById("size");
-    const colorInput = document.getElementById("color");
-    let drawing = false;
-    let lastX = 0;
-    let lastY = 0;
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
 
-    function getCursorPosition(e) {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+    let painting = false;
+    let brushColor = document.getElementById('colorPicker').value;
+    let brushSize = document.getElementById('brushSize').value;
+    let currentTool = 'brush';
+
+    let history = [];
+    let historyStep = -1;
+
+    function saveState() {
+      history = history.slice(0, historyStep + 1); // redo 스택 제거
+      history.push(canvas.toDataURL());
+      historyStep++;
+    }
+
+    function undo() {
+      if (historyStep > 0) {
+        historyStep--;
+        restoreState(history[historyStep]);
+      }
+    }
+
+    function redo() {
+      if (historyStep < history.length - 1) {
+        historyStep++;
+        restoreState(history[historyStep]);
+      }
+    }
+
+    function restoreState(dataURL) {
+      const img = new Image();
+      img.src = dataURL;
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
       };
     }
 
-    canvas.addEventListener("mousedown", (e) => {
-      const pos = getCursorPosition(e);
-      lastX = pos.x;
-      lastY = pos.y;
-      drawing = true;
-    });
+    function getCanvasCoordinates(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
 
-    canvas.addEventListener("mousemove", (e) => {
-      const size = parseInt(sizeInput.value);
-      cursorPreview.style.width = size + "px";
-      cursorPreview.style.height = size + "px";
-      cursorPreview.style.left = e.pageX - size / 2 + "px";
-      cursorPreview.style.top = e.pageY - size / 2 + "px";
+    function startPosition(e) {
+      painting = true;
+      saveState(); // 상태 저장
+      draw(e);
+    }
 
-      if (!drawing) return;
-
-      const pos = getCursorPosition(e);
-      ctx.strokeStyle = colorInput.value;
-      ctx.lineWidth = size;
-      ctx.lineCap = "round";
-
+    function finishedPosition() {
+      painting = false;
       ctx.beginPath();
-      ctx.moveTo(lastX, lastY);
+    }
+
+    function draw(e) {
+      if (!painting) return;
+
+      const pos = getCanvasCoordinates(e);
+
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+
+      ctx.strokeStyle = currentTool === 'brush' ? brushColor : 'white';
+
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
 
-      lastX = pos.x;
-      lastY = pos.y;
+    function setTool(tool) {
+      currentTool = tool;
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      saveState();
+    }
+
+    document.getElementById('colorPicker').addEventListener('input', (e) => {
+      brushColor = e.target.value;
     });
 
-    canvas.addEventListener("mouseup", () => drawing = false);
-    canvas.addEventListener("mouseleave", () => drawing = false);
+    document.getElementById('brushSize').addEventListener('input', (e) => {
+      brushSize = e.target.value;
+    });
+
+    // 마우스 이벤트
+    canvas.addEventListener('mousedown', startPosition);
+    canvas.addEventListener('mouseup', finishedPosition);
+    canvas.addEventListener('mousemove', draw);
+
+    // 터치 이벤트
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      startPosition(e.touches[0]);
+    });
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      finishedPosition();
+    });
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      draw(e.touches[0]);
+    });
+
+    // 단축키
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault();
+        undo();
+      } else if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    });
+
+    // 첫 상태 저장 (빈 캔버스 기준)
+    saveState();
   </script>
+
 </body>
 </html>
